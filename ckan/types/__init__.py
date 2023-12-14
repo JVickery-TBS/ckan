@@ -102,6 +102,9 @@ class Context(TypedDict, total=False):
     allow_state_change: bool
     is_member: bool
     use_cache: bool
+    __created_resource_dict: dict
+    __updated_resource_dict: dict
+    __deleted_resource_id: str
     include_plugin_extras: bool
     message: str
     extras_as_string: bool

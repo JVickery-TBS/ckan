@@ -193,6 +193,7 @@ def resource_delete(context: Context, data_dict: DataDict) -> ActionResult.Resou
         pkg_dict['resources'] = [r for r in pkg_dict['resources'] if not
                 r['id'] == id]
     try:
+        context['__deleted_resource_id'] = id
         pkg_dict = _get_action('package_update')(context, pkg_dict)
     except ValidationError as e:
         errors = cast("list[ErrorDict]", e.error_dict['resources'])[-1]

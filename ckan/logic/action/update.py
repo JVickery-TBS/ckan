@@ -108,6 +108,7 @@ def resource_update(context: Context, data_dict: DataDict) -> ActionResult.Resou
 
     try:
         context['use_cache'] = False
+        context['__updated_resource_dict'] = data_dict
         updated_pkg_dict = _get_action('package_update')(context, pkg_dict)
     except ValidationError as e:
         try:
@@ -260,6 +261,9 @@ def package_update(
 
     '''
     model = context['model']
+    created_resource_dict = context.pop('__created_resource_dict', None)
+    updated_resource_dict = context.pop('__updated_resource_dict', None)
+    deleted_resource_id = context.pop('__deleted_resource_id', None)
     name_or_id = data_dict.get('id') or data_dict.get('name')
     if name_or_id is None:
         raise ValidationError({'id': _('Missing value')})
@@ -281,6 +285,16 @@ def package_update(
     package_plugin = lib_plugins.lookup_package_plugin(pkg.type)
     schema = context.get('schema') or package_plugin.update_package_schema()
 
+    # if created_resource_dict, updated_resource_dict, or
+    # deleted_resource_id is set, then package_update is being
+    # called from a resource action method. We do not need to go
+    # through each resource in that case.
+    # TODO: check if any contexts are set, otherwise we must loop
+    # through all existing and new resources to determine which are
+    # created, updated, and deleted.
+
+    # TODO: we only need to do this for new and updated resources.
+    # Also, do the persistance on datastore_active extra field here.
     resource_uploads = []
     for resource in data_dict.get('resources', []):
         # file uploads/clearing
@@ -295,6 +309,10 @@ def package_update(
                 resource['size'] = upload.filesize
 
         resource_uploads.append(upload)
+
+    # before resource plugin hooks
+    # TODO: do before_resource_create, before_resource_update,
+    # and before_resource_delete
 
     data, errors = lib_plugins.plugin_validate(
         package_plugin, context, data_dict, schema, 'package_update')
@@ -329,6 +347,7 @@ def package_update(
                                              'organization_id': pkg.owner_org})
 
     # Needed to let extensions know the new resources ids
+    # TODO: we only need to do this for new or updated resources.
     model.Session.flush()
     for index, (resource, upload) in enumerate(
             zip(data.get('resources', []), resource_uploads)):
@@ -345,6 +364,13 @@ def package_update(
         model.repo.commit()
 
     log.debug('Updated object %s' % pkg.name)
+
+    # resource default views
+    # TODO: create default resource views for new or updated resources
+
+    # after resource plugin hooks
+    # TODO: do after_resource_create, after_resource_update,
+    # and after_resource_delete
 
     return_id_only = context.get('return_id_only', False)
 

@@ -52,6 +52,14 @@ def package_patch(
     patched = dict(package_dict)
     patched.update(data_dict)
     patched['id'] = package_dict['id']
+
+    if 'resources' not in data_dict:
+        # if a list of resources is not supplied, we
+        # should allow a partial update to skip any
+        # unnecessary actions on the resources.
+        patched.pop('resources', None)
+        context['allow_partial_update'] = True
+
     return _get_action('package_update')(context, patched)
 
 
