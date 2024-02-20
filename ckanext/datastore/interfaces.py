@@ -5,6 +5,8 @@ from ckan.types import Context, Schema
 from typing import Any
 import ckan.plugins.interfaces as interfaces
 
+from ckanext.datastore.formats import DatastoreDumpFormat
+
 
 class IDatastore(interfaces.Interface):
     '''Allow modifying Datastore queries'''
@@ -232,3 +234,17 @@ class IDataDictionaryForm(interfaces.Interface):
         in the data dictionary page.
         """
         return field
+
+
+class IDatastoreFormats(interfaces.Interface):
+    """
+    Allow pluggable Datastore Dump formats.
+    """
+
+    def update_formats(self, formats: dict[str, DatastoreDumpFormat]) -> \
+            dict[str, DatastoreDumpFormat]:
+
+        """
+        Return a list of DatastoreDumpFormat objects.
+        """
+        return formats

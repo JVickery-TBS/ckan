@@ -22,12 +22,9 @@ from ckanext.datastore.logic.schema import (
     json_validator,
     unicode_or_json_validator,
 )
-from ckanext.datastore.writer import (
-    csv_writer,
-    tsv_writer,
-    json_writer,
-    xml_writer,
-)
+from ckanext.datastore.formats import DatastoreDumpFormat
+from ckanext.datastore.helpers import datastore_dump_formats
+
 
 int_validator = get_validator(u'int_validator')
 boolean_validator = get_validator(u'boolean_validator')
@@ -76,7 +73,6 @@ def dump(resource_id: str):
     fmt = data['format']
     offset = data['offset']
     limit = data.get('limit')
-    options = {'bom': data['bom']}
     sort = data['sort']
     search_params = {
         k: v
@@ -89,40 +85,24 @@ def dump(resource_id: str):
 
     user_context = g.user
 
-    content_type = None
-    content_disposition = None
+    dump_formats = datastore_dump_formats()
 
-    if fmt == 'csv':
-        content_disposition = 'attachment; filename="{name}.csv"'.format(
-                                    name=resource_id)
-        content_type = b'text/csv; charset=utf-8'
-    elif fmt == 'tsv':
-        content_disposition = 'attachment; filename="{name}.tsv"'.format(
-                                    name=resource_id)
-        content_type = b'text/tab-separated-values; charset=utf-8'
-    elif fmt == 'json':
-        content_disposition = 'attachment; filename="{name}.json"'.format(
-                                    name=resource_id)
-        content_type = b'application/json; charset=utf-8'
-    elif fmt == 'xml':
-        content_disposition = 'attachment; filename="{name}.xml"'.format(
-                                    name=resource_id)
-        content_type = b'text/xml; charset=utf-8'
-    else:
-        abort(404, _('Unsupported format'))
+    if fmt not in dump_formats:
+        abort(400, _('Unsupported format %s') % fmt)
 
-    headers = {}
-    if content_type:
-        headers['Content-Type'] = content_type
-    if content_disposition:
-        headers['Content-disposition'] = content_disposition
+    format_class = dump_formats[fmt]
+
+    headers = {
+        'Content-Type': format_class.content_type_header,
+        'Content-disposition': format_class.get_content_disposition_header(
+            resource_id),
+    }
 
     try:
         return Response(dump_to(resource_id,
-                                fmt=fmt,
+                                fmt_cls=format_class,
                                 offset=offset,
                                 limit=limit,
-                                options=options,
                                 sort=sort,
                                 search_params=search_params,
                                 user=user_context),
@@ -222,29 +202,13 @@ class DictionaryView(MethodView):
 
 
 def dump_to(
-    resource_id: str, fmt: str, offset: int,
-    limit: Optional[int], options: dict[str, Any], sort: str,
+    resource_id: str, fmt_cls: DatastoreDumpFormat, offset: int,
+    limit: Optional[int], sort: str,
     search_params: dict[str, Any], user: str
 ):
-    if fmt == 'csv':
-        writer_factory = csv_writer
-        records_format = 'csv'
-    elif fmt == 'tsv':
-        writer_factory = tsv_writer
-        records_format = 'tsv'
-    elif fmt == 'json':
-        writer_factory = json_writer
-        records_format = 'lists'
-    elif fmt == 'xml':
-        writer_factory = xml_writer
-        records_format = 'objects'
-    else:
-        assert False, 'Unsupported format'
-
-    bom = options.get('bom', False)
 
     def start_stream_writer(fields: list[dict[str, Any]]):
-        return writer_factory(fields, bom=bom)
+        return fmt_cls.writer_factory(fields)
 
     def stream_result_page(offs: int, lim: Union[None, int]):
         return get_action('datastore_search')(
@@ -255,7 +219,7 @@ def dump_to(
                 if limit is None else min(PAGINATE_BY, lim),  # type: ignore
                 'offset': offs,
                 'sort': sort,
-                'records_format': records_format,
+                'records_format': fmt_cls.ds_records_format,
                 'include_total': False,
             }, **search_params)
         )
@@ -271,7 +235,9 @@ def dump_to(
 
                 yield writer.write_records(records)
 
-                if records_format == 'objects' or records_format == 'lists':
+                if fmt_cls.ds_records_format == 'objects' \
+                        or fmt_cls.ds_records_format == 'lists':
+
                     if len(records) < paginate_by:
                         break
                 elif not records:

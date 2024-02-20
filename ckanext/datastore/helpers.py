@@ -11,8 +11,11 @@ from typing_extensions import Literal
 import sqlparse
 import sqlalchemy as sa
 import ckan.common as converters
+import ckan.plugins as p
 import ckan.plugins.toolkit as tk
 from ckan.types import Context
+from ckanext.datastore.interfaces import IDatastoreFormats
+from ckanext.datastore.formats import DatastoreDumpFormat
 
 
 log = logging.getLogger(__name__)
@@ -248,3 +251,10 @@ def datastore_rw_resource_url_types() -> list[str]:
     datastore_delete
     """
     return ["datastore"]
+
+
+def datastore_dump_formats() -> dict[str, DatastoreDumpFormat]:
+    formats = {}
+    for plugin in p.PluginImplementations(IDatastoreFormats):
+        formats = plugin.update_formats(formats)
+    return formats

@@ -21,6 +21,7 @@ from ckanext.datastore.backend.postgres import (
     _get_raw_field_info,
 )
 from ckanext.datastore.blueprint import DUMP_FORMATS, dump_to
+from ckanext.datastore.helpers import datastore_dump_formats
 
 log = logging.getLogger(__name__)
 
@@ -97,18 +98,21 @@ def permissions_sql(maindb: str, datastoredb: str, mainuser: str,
 @click.option(u'--bom', is_flag=True)
 @click.pass_context
 def dump(ctx: Any, resource_id: str, output_file: Any, format: str,
-         offset: int, limit: int, bom: bool):
+         offset: int, limit: int):
     u'''Dump a datastore resource.
     '''
     flask_app = ctx.meta['flask_app']
     user = logic.get_action('get_site_user')(
             {'ignore_auth': True}, {})
+    dump_formats = datastore_dump_formats()
+    if format not in dump_formats:
+        click.echo('Unsupported format %s' % format)
+        return
     with flask_app.test_request_context():
         for block in dump_to(resource_id,
-                             fmt=format,
+                             fmt_cls=dump_formats[format],
                              offset=offset,
                              limit=limit,
-                             options={u'bom': bom},
                              sort=u'_id',
                              search_params={},
                              user=user['name']):

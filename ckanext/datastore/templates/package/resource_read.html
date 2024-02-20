@@ -13,22 +13,12 @@
         <span class="caret"></span>
       </button>
     <ul class="dropdown-menu" aria-labelledby="dropdownDownloadFormat">
-      <li>
-        <a class="dropdown-item" href="{{ h.url_for('datastore.dump', resource_id=res.id, bom=True) }}"
-          target="_blank" rel="noreferrer"><span>CSV</span></a>
-      </li>
-      <li>
-        <a class="dropdown-item" href="{{ h.url_for('datastore.dump', resource_id=res.id, format='tsv', bom=True) }}"
-          target="_blank" rel="noreferrer"><span>TSV</span></a>
-      </li>
-      <li>
-          <a class="dropdown-item" href="{{ h.url_for('datastore.dump', resource_id=res.id, format='json') }}"
-          target="_blank" rel="noreferrer"><span>JSON</span></a>
-      </li>
-      <li>
-          <a class="dropdown-item" href="{{ h.url_for('datastore.dump', resource_id=res.id, format='xml') }}"
-          target="_blank" rel="noreferrer"><span>XML</span></a>
-      </li>
+      {% for fmt, fmt_cls in h.datastore_dump_formats().items() %}
+        <li>
+          <a class="dropdown-item" href="{{ h.url_for('datastore.dump', format=fmt, resource_id=res.id, bom=fmt_cls.bom) }}"
+            target="_blank" rel="noreferrer"><span>{{ fmt | upper }}</span></a>
+        </li>
+      {% endfor %}
     </ul>
 {% endif %}
 {% endblock download_resource_button %}

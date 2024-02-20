@@ -475,6 +475,21 @@ this.ckan.module('datatables_view', function (jQuery) {
           })
       })
 
+      function datastore_dump_buttons(){
+        let button_list = [];
+        for( let i = 0; i <  datastore_dump_formats.length; i++){
+          button_list.push({
+            text: datastore_dump_formats[i].toUpperCase(),
+            action: function (e, dt, button, config) {
+              const params = datatable.ajax.params()
+              params.visible = datatable.columns().visible().toArray()
+              run_query(params, datastore_dump_formats[i])
+            }
+          })
+        }
+        return button_list;
+      }
+
       // init the datatable
       $('#dtprv').on('preInit.dt', function (_event, _settings) {
         // show loading indicator when first painting data into the table.
@@ -775,35 +790,7 @@ this.ckan.module('datatables_view', function (jQuery) {
           className: 'btn-default',
           autoClose: true,
           extend: 'collection',
-          buttons: [{
-            text: 'CSV',
-            action: function (e, dt, button, config) {
-              const params = datatable.ajax.params()
-              params.visible = datatable.columns().visible().toArray()
-              run_query(params, 'csv')
-            }
-          }, {
-            text: 'TSV',
-            action: function (e, dt, button, config) {
-              const params = datatable.ajax.params()
-              params.visible = datatable.columns().visible().toArray()
-              run_query(params, 'tsv')
-            }
-          }, {
-            text: 'JSON',
-            action: function (e, dt, button, config) {
-              const params = datatable.ajax.params()
-              params.visible = datatable.columns().visible().toArray()
-              run_query(params, 'json')
-            }
-          }, {
-            text: 'XML',
-            action: function (e, dt, button, config) {
-              const params = datatable.ajax.params()
-              params.visible = datatable.columns().visible().toArray()
-              run_query(params, 'xml')
-            }
-          }]
+          buttons: datastore_dump_buttons(),
         }, {
           name: 'resetButton',
           text: '<i class="fa fa-repeat"></i>',

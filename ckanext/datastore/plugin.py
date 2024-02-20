@@ -22,10 +22,9 @@ from ckanext.datastore.backend import (
 )
 from ckanext.datastore.backend.postgres import DatastorePostgresqlBackend
 import ckanext.datastore.blueprint as view
+import ckanext.datastore.formats as fmts
 
 log = logging.getLogger(__name__)
-
-DEFAULT_FORMATS = []
 
 
 def sql_functions_allowlist_file():
@@ -47,6 +46,7 @@ class DatastorePlugin(p.SingletonPlugin):
     p.implements(interfaces.IDatastore, inherit=True)
     p.implements(interfaces.IDatastoreBackend, inherit=True)
     p.implements(p.IBlueprint)
+    p.implements(interfaces.IDatastoreFormats)
 
     resource_show_action = None
 
@@ -260,11 +260,13 @@ class DatastorePlugin(p.SingletonPlugin):
         conf_dictionary = datastore_helpers.datastore_dictionary
         conf_sql_enabled = datastore_helpers.datastore_search_sql_enabled
         rw_url_types = datastore_helpers.datastore_rw_resource_url_types
+        dump_formats = datastore_helpers.datastore_dump_formats
 
         return {
             'datastore_dictionary': conf_dictionary,
             'datastore_search_sql_enabled': conf_sql_enabled,
             'datastore_rw_resource_url_types': rw_url_types,
+            'datastore_dump_formats': dump_formats,
         }
 
     # IForkObserver
@@ -283,3 +285,19 @@ class DatastorePlugin(p.SingletonPlugin):
         u'''Return a Flask Blueprint object to be registered by the app.'''
 
         return view.datastore
+
+    # IDatastoreFormats
+
+    def update_formats(self, formats: dict[str, fmts.DatastoreDumpFormat]) -> \
+            dict[str, fmts.DatastoreDumpFormat]:
+
+        """
+        Return a list of DatastoreDumpFormat objects.
+        """
+        return {
+            'csv': fmts.CSV(),
+            'tsv': fmts.TSV(),
+            'json': fmts.JSON(),
+            'xml': fmts.XML(),
+            **formats,
+        }

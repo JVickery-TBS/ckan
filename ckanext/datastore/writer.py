@@ -3,61 +3,31 @@ from __future__ import annotations
 
 from io import StringIO, BytesIO
 
-from contextlib import contextmanager
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from simplejson import dumps
 
 from xml.etree.cElementTree import Element, SubElement, ElementTree
 
-import csv
 
-from codecs import BOM_UTF8
-
-
-BOM = "\N{bom}"
-
-
-@contextmanager
-def csv_writer(fields: list[dict[str, Any]], bom: bool = False):
-    '''Context manager for writing UTF-8 CSV data to file
-
-    :param fields: list of datastore fields
-    :param bom: True to include a UTF-8 BOM at the start of the file
-    '''
-    output = StringIO()
-
-    if bom:
-        output.write(BOM)
-
-    csv.writer(output).writerow(
-        f['id'] for f in fields)
-    yield TextWriter(output)
-
-
-@contextmanager
-def tsv_writer(fields: list[dict[str, Any]], bom: bool = False):
-    '''Context manager for writing UTF-8 TSV data to file
-
-    :param fields: list of datastore fields
-    :param bom: True to include a UTF-8 BOM at the start of the file
-    '''
-    output = StringIO()
-
-    if bom:
-        output.write(BOM)
-
-    csv.writer(
-        output,
-        dialect='excel-tab').writerow(
-            f['id'] for f in fields)
-    yield TextWriter(output)
-
-
-class TextWriter(object):
-    'text in, text out'
-    def __init__(self, output: StringIO):
+class DatastoreDumpWriter(object):
+    def __init__(self, output: Union[StringIO, BytesIO]):
         self.output = output
 
+    def write_records(self, records: list[Any]) -> bytes:
+        """
+        Should write records to the output, seek, read,
+        truncate, and return the output data as bytes.
+        """
+        raise NotImplementedError
+
+    def end_file(self) -> bytes:
+        """
+        Should return any EOF characters as bytes.
+        """
+        raise NotImplementedError
+
+
+class TextWriter(DatastoreDumpWriter):
     def write_records(self, records: list[Any]) -> bytes:
         self.output.write(records)  # type: ignore
         self.output.seek(0)
@@ -70,27 +40,9 @@ class TextWriter(object):
         return b''
 
 
-@contextmanager
-def json_writer(fields: list[dict[str, Any]], bom: bool = False):
-    '''Context manager for writing UTF-8 JSON data to file
-
-    :param fields: list of datastore fields
-    :param bom: True to include a UTF-8 BOM at the start of the file
-    '''
-    output = StringIO()
-
-    if bom:
-        output.write(BOM)
-
-    output.write(
-        '{\n  "fields": %s,\n  "records": [' % dumps(
-            fields, ensure_ascii=False, separators=(',', ':')))
-    yield JSONWriter(output)
-
-
-class JSONWriter(object):
+class JSONWriter(DatastoreDumpWriter):
     def __init__(self, output: StringIO):
-        self.output = output
+        super(JSONWriter, self).__init__(output)
         self.first = True
 
     def write_records(self, records: list[Any]) -> bytes:
@@ -114,29 +66,12 @@ class JSONWriter(object):
         return b'\n]}\n'
 
 
-@contextmanager
-def xml_writer(fields: list[dict[str, Any]], bom: bool = False):
-    '''Context manager for writing UTF-8 XML data to file
-
-    :param fields: list of datastore fields
-    :param bom: True to include a UTF-8 BOM at the start of the file
-    '''
-    output = BytesIO()
-
-    if bom:
-        output.write(BOM_UTF8)
-
-    output.write(
-        b'<data xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n')
-    yield XMLWriter(output, [f['id'] for f in fields])
-
-
-class XMLWriter(object):
+class XMLWriter(DatastoreDumpWriter):
     _key_attr = 'key'
     _value_tag = 'value'
 
     def __init__(self, output: BytesIO, columns: list[str]):
-        self.output = output
+        super(JSONWriter, self).__init__(output)
         self.id_col = columns[0] == '_id'
         if self.id_col:
             columns = columns[1:]
