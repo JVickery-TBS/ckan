@@ -224,7 +224,11 @@ def datastore_search_buckets_schema() -> Schema:
         'resource_id': [not_missing, not_empty, unicode_safe],
         'id': [ignore_missing],
         'q': [ignore_missing, unicode_or_json_validator],
-        'buckets': [default(12), int_validator],
+        'buckets': [
+            default(12),
+            natural_number_validator,
+            limit_to_configured_maximum('ckan.datastore.search.buckets_max', 300),
+        ],
         'plain': [ignore_missing, boolean_validator],
         'filters': [ignore_missing, json_validator],
         'language': [ignore_missing, unicode_safe],

@@ -777,11 +777,6 @@ def datastore_search_buckets(context: Context, data_dict: dict[str, Any]):
     :rtype: A dictionary with the following keys
     :param fields: fields/columns and their extra metadata
     :type fields: list of dictionaries
-    :param filters: query filters
-    :type filters: list of dictionaries
-    :param buckets: dict of matching results
-    :type buckets: dict of field ids and bucketed data
-
     '''
     backend = DatastoreBackend.get_active_backend()
     schema = context.get('schema', dsschema.datastore_search_buckets_schema())

@@ -1649,14 +1649,15 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
         edges_{index} AS (
             SELECT DISTINCT
                 (data_stats_{index}.min_val + (
-                generate_series(0, {num_buckets}-1)
+                generate_series(0, {num_buckets})
                 * (data_stats_{index}.max_val - data_stats_{index}.min_val)
                 / {num_buckets}
-                ))::{ftype}
+                ))::{ftype} e
             FROM data_stats_{index}
+            ORDER BY e
         ),
         data_{index} AS (
-            SELECT val, freq
+            SELECT val, coalesce(freq, 0) freq
             FROM
                 unnest(array(select * from edges_{index})) with ordinality as val
             FULL JOIN
@@ -1705,7 +1706,7 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
                 resource=identifier(resource_id),
                 ts_query=ts_query,
                 where=where_clause,
-                num_buckets=MAX_BUCKETS,
+                num_buckets=data_dict['buckets'],
                 ftype=ftype,
             ))
 
@@ -1730,8 +1731,19 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
     ).mappings().one()
 
     for i, rf in enumerate(rfields, 1):
-        rf['buckets'] = result[f'freq_{i}']
-        rf['edges'] = result[f'edge_{i}']
+        buckets = result[f'freq_{i}']
+        edges = result[f'edge_{i}']
+        rf['nulls'] = 0
+        if result[f'edge_{i}'][-1:] == [None]:
+            edges.pop()
+            rf['nulls'] = buckets.pop()
+            if edges == [None]:  # all nulls returns two null edges
+                edges = []
+                buckets = []
+        # last value returned contains count exactly matching max value
+        # combine with bucket before
+        rf['buckets'] = buckets[:-2] + ([sum(buckets[-2:])] if buckets else [])
+        rf['edges'] = edges
 
     return {'fields': rfields}
 
