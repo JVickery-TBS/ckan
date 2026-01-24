@@ -1740,9 +1740,11 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
             if edges == [None]:  # all nulls returns two null edges
                 edges = []
                 buckets = []
-        # last value returned contains count exactly matching max value
-        # combine with bucket before
-        rf['buckets'] = buckets[:-2] + ([sum(buckets[-2:])] if buckets else [])
+        if len(buckets) > data_dict['buckets']:
+            # last value returned contains count exactly matching max value
+            # combine with bucket before
+            buckets = buckets[:-2] + [sum(buckets[-2:])]
+        rf['buckets'] = buckets
         rf['edges'] = edges
 
     return {'fields': rfields}

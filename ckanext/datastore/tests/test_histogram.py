@@ -35,8 +35,8 @@ def test_histograms():
             {"one": 1, "short": 2, "nums": -4, "days": "2026-01-01", "ts": "2026-01-01"},
             {"one": 1, "short": 2, "nums": 20, "days": "2026-01-03", "ts": "2026-01-03"},
             {"one": 1, "short": 2, "nums": 10, "days": "2026-02-01", "ts": "2026-02-01"},
-            {"one": 1, "short": 8, "nums": 15, "days": "2026-01-06", "ts": "2026-01-06"},
-            {"one": 1, "short": 9, "nums": 15, "days": "2026-02-01", "ts": "2026-02-01"},
+            {"one": 1, "short": 3, "nums": 15, "days": "2026-01-06", "ts": "2026-01-06"},
+            {"one": 1, "short": 4, "nums": 15, "days": "2026-02-01", "ts": "2026-02-01"},
             {"one": 1, "short": 3, "nums": -1, "days": "2026-01-18", "ts": "2026-01-18"},
         ],
     )
@@ -50,8 +50,8 @@ def test_histograms():
         {"id": "one", "buckets": [6], "edges": [1], "nulls": 0, "type": "numeric"},
         {
             "id": "short",
-            "buckets": [3, 1, 0, 2],
-            "edges": [2, 3, 5, 7, 9],
+            "buckets": [3, 2, 1],
+            "edges": [2, 3, 4],
             "nulls": 0,
             "type": "int4",
         },
