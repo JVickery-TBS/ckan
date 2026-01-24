@@ -85,8 +85,6 @@ _INSERT = 'insert'
 _UPSERT = 'upsert'
 _UPDATE = 'update'
 
-MAX_BUCKETS = 60  # easy to reduce to 30, 20, 15, 12, 10, …
-
 if not os.environ.get('DATASTORE_LOAD'):
     ValidationError = toolkit.ValidationError  # type: ignore
 else:
@@ -1659,11 +1657,12 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
         data_{index} AS (
             SELECT val, coalesce(freq, 0) freq
             FROM
-                unnest(array(select * from edges_{index})) with ordinality as val
+                unnest(array(SELECT * FROM edges_{index})) with ordinality as val
             FULL JOIN
                 (
                     SELECT
-                        width_bucket({column}, array(select * from edges_{index})) AS bucket,
+                        width_bucket({column}, array(
+                            SELECT * FROM edges_{index})) AS bucket,
                         count(*) AS freq
                     FROM
                         {resource},

@@ -1,19 +1,10 @@
 # encoding: utf-8
 
 import pytest
-import sqlalchemy as sa
-import sqlalchemy.orm as orm
 from datetime import date, datetime
-from unittest import mock
 
-import ckan.logic as logic
-import ckan.model as model
-import ckan.plugins as p
-import ckan.tests.factories as factories
-import ckan.tests.helpers as helpers
-from ckan.lib.helpers import url_for
-import ckanext.datastore.backend.postgres as db
-from ckanext.datastore.tests.helpers import extract
+from ckan.tests import factories
+from ckan.tests import helpers
 
 
 @pytest.mark.ckan_config("ckan.plugins", "datastore")
@@ -84,7 +75,6 @@ def test_histograms():
                 datetime(2026, 1, 16, 12),
                 datetime(2026, 1, 24, 6),
                 datetime(2026, 2, 1, 0),
-
             ],
             "nulls": 0,
             "type": "timestamp",
