@@ -1,6 +1,7 @@
 # encoding: utf-8
 import re
 
+from datetime import date, datetime
 import pytest
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
@@ -215,3 +216,76 @@ class TestGetFunctions(object):
         except ProgrammingError as e:
             if bool(re.search("function crosstab(.*) does not exist", str(e))):
                 pytest.skip("crosstab functions not enabled in DataStore database")
+
+
+def test_datastore_bucket_histogram():
+    dbh = datastore_helpers.datastore_bucket_histogram
+    HistogramBar = datastore_helpers.HistogramBar
+
+    assert dbh([
+        {"id": "all_null", "buckets": [], "edges": [], "nulls": 6, "type": "int4"},
+        {"id": "one", "buckets": [6], "edges": [1], "nulls": 0, "type": "numeric"},
+    ]) == {
+        "all_null": [],
+        "one": [HistogramBar(1.0, 1.0, 1, 1)],
+    }
+
+    assert dbh([
+        {
+            "id": "short",
+            "buckets": [4, 2, 0, 1],
+            "edges": [2, 3, 4, 5],
+            "nulls": 0,
+            "type": "int4",
+        },
+        {
+            "id": "nums",
+            "buckets": [2, 0, 1, 4],
+            "edges": [-4, 2, 8, 14, 20],
+            "nulls": 0,
+            "type": "numeric",
+        },
+    ]) == {
+        "short": [
+            HistogramBar(.25, 1, 2, 2),
+            HistogramBar(.25, .5, 3, 3),
+            HistogramBar(.25, 0, 4, 4),
+            HistogramBar(.25, .25, 5, 5),
+        ],
+        "nums": [
+            HistogramBar(.25, .5, -4, 2),
+            HistogramBar(.25, 0, 2, 8),
+            HistogramBar(.25, .25, 8, 14),
+            HistogramBar(.25, 1, 14, 20),
+        ],
+    }
+
+    assert dbh([
+        {
+            "id": "days",
+            "buckets": [3, 0, 1, 2],
+            "edges": [
+                date(2026, 1, 1),
+                date(2026, 1, 8),
+                date(2026, 1, 16),
+                date(2026, 1, 24),
+                date(2026, 2, 1),
+            ],
+            "nulls": 0,
+            "type": "date",
+        },
+        {
+            "id": "ts",
+            "buckets": [3, 0, 1, 2],
+            "edges": [
+                datetime(2026, 1, 1, 0),
+                datetime(2026, 1, 8, 18),
+                datetime(2026, 1, 16, 12),
+                datetime(2026, 1, 24, 6),
+                datetime(2026, 2, 1, 0),
+            ],
+            "nulls": 0,
+            "type": "timestamp",
+        }
+    ]) == []  #FIXME: finish test
+
