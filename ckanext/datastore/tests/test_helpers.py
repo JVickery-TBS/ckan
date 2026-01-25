@@ -263,29 +263,42 @@ def test_datastore_bucket_histogram():
     assert dbh([
         {
             "id": "days",
-            "buckets": [3, 0, 1, 2],
+            "buckets": [6, 4, 0, 8],
             "edges": [
                 date(2026, 1, 1),
-                date(2026, 1, 8),
+                date(2026, 1, 7),
+                date(2026, 1, 9),
+                date(2026, 1, 15),
                 date(2026, 1, 16),
-                date(2026, 1, 24),
-                date(2026, 2, 1),
             ],
             "nulls": 0,
             "type": "date",
         },
         {
             "id": "ts",
-            "buckets": [3, 0, 1, 2],
+            "buckets": [6, 4, 0, 8],
             "edges": [
-                datetime(2026, 1, 1, 0),
-                datetime(2026, 1, 8, 18),
-                datetime(2026, 1, 16, 12),
-                datetime(2026, 1, 24, 6),
-                datetime(2026, 2, 1, 0),
+                datetime(2026, 1, 1),
+                datetime(2026, 1, 7),
+                datetime(2026, 1, 9),
+                datetime(2026, 1, 15),
+                datetime(2026, 1, 17),
             ],
             "nulls": 0,
             "type": "timestamp",
         }
-    ]) == []  #FIXME: finish test
+    ]) == {
+        "days": [
+            HistogramBar(0.375, 0.25, date(2026, 1, 1), date(2026, 1, 6)),
+            HistogramBar(0.125, 0.5, date(2026, 1, 7), date(2026, 1, 8)),
+            HistogramBar(0.375, 0.0, date(2026, 1, 9), date(2026, 1, 14)),
+            HistogramBar(0.125, 1.0, date(2026, 1, 15), date(2026, 1, 16)),
+        ],
+        "ts": [
+            HistogramBar(0.375, 0.25, datetime(2026, 1, 1), datetime(2026, 1, 7)),
+            HistogramBar(0.125, 0.5, datetime(2026, 1, 7), datetime(2026, 1, 9)),
+            HistogramBar(0.375, 0.0, datetime(2026, 1, 9), datetime(2026, 1, 15)),
+            HistogramBar(0.125, 1.0, datetime(2026, 1, 15), datetime(2026, 1, 17)),
+        ],
+    }
 

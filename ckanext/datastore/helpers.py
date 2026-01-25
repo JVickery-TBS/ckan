@@ -321,6 +321,10 @@ def datastore_bucket_histogram(bucket_fields: list[dict[str, Any]]
                 nedges = [e.toordinal() for e in edges]
             else:
                 nedges = [float(e) for e in edges]
+
+            if step:
+                nedges[-1] += 1
+
             total_width = nedges[-1] - nedges[0]
             widths = [
                 (high - low) / total_width
