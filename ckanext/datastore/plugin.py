@@ -265,9 +265,11 @@ class DatastorePlugin(p.SingletonPlugin):
 
     def get_helpers(self) -> dict[str, Callable[..., object]]:
         return {
-            'datastore_dictionary': datastore_helpers.conf_dictionary,
-            'datastore_search_sql_enabled': datastore_helpers.conf_sql_enabled,
-            'datastore_rw_resource_url_types': datastore_helpers.rw_url_types,
+            'datastore_dictionary': datastore_helpers.datastore_dictionary,
+            'datastore_search_sql_enabled':
+                datastore_helpers.datastore_search_sql_enabled,
+            'datastore_rw_resource_url_types':
+                datastore_helpers.datastore_rw_resource_url_types,
             'datastore_show_resource_actions':
                 datastore_helpers.datastore_show_resource_actions,
             'datastore_bucket_histogram':

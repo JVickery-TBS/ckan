@@ -1636,7 +1636,7 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
     ts_query = cast(str, query_dict['ts_query'])
     resource_id = data_dict['resource_id']
 
-    sql_number_fmt = '''
+    sql_string = '''
         data_stats_{index} AS (
             SELECT
                 min({column}) AS min_val,
@@ -1648,7 +1648,7 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
             SELECT DISTINCT
                 (data_stats_{index}.min_val + (
                 generate_series(0, {num_buckets})
-                * (data_stats_{index}.max_val - data_stats_{index}.min_val)
+                * (data_stats_{index}.max_val {step} - data_stats_{index}.min_val)
                 / {num_buckets}
                 ))::{ftype} e
             FROM data_stats_{index}
@@ -1685,16 +1685,13 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
         if fid == '_id':
             continue
 
-        sql_string = None
-        if ftype in ['int', 'int4',
-                     'bigint', 'int8',
-                     'decimal', 'numeric',
-                     'datetime', 'date',
-                     'timestamp', 'timestamptz']:
-            sql_string = sql_number_fmt
-
-        if not sql_string:
+        if ftype in ['int', 'int4', 'bigint', 'int8', 'date']:
+            step = 1
+        elif ftype in ['decimal', 'numeric', 'datetime', 'timestamp', 'timestamptz']:
+            step = 0
+        else:
             continue
+
 
         rfields.append({'id': fid, 'type': ftype})
 
@@ -1707,6 +1704,7 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
                 where=where_clause,
                 num_buckets=data_dict['buckets'],
                 ftype=ftype,
+                step=f'+ {step}' if step else '',
             ))
 
         select_queries.append('''
@@ -1743,6 +1741,21 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
             # last value returned contains count exactly matching max value
             # combine with bucket before
             buckets = buckets[:-2] + [sum(buckets[-2:])]
+        if (
+            rf['type'] in ['int', 'int4', 'bigint', 'int8', 'date']
+            and edges and edges[-1] is not None
+        ):
+            # make last edge exactly max(column) for discrete values
+            # because it was adjusted by + step (+ 1) in the sql above
+            if rf['type'] == 'date':
+                edges[-1] -= datetime.timedelta(days=1)
+            else:
+                edges[-1] -= 1
+        if buckets and buckets[-1] == 0:
+            # adjusting discrete last edge +1 left empty an bucket
+            # because num discrete values < data_dict['buckets']
+            edges.pop()
+            buckets.pop()
         rf['buckets'] = buckets
         rf['edges'] = edges
 

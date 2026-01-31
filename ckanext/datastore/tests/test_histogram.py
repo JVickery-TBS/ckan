@@ -58,9 +58,9 @@ def test_histograms():
             "buckets": [3, 0, 1, 2],
             "edges": [
                 date(2026, 1, 1),
-                date(2026, 1, 8),
-                date(2026, 1, 16),
-                date(2026, 1, 24),
+                date(2026, 1, 9),
+                date(2026, 1, 17),
+                date(2026, 1, 25),
                 date(2026, 2, 1),
             ],
             "nulls": 0,
@@ -79,4 +79,32 @@ def test_histograms():
             "nulls": 0,
             "type": "timestamp",
         }
+    ]
+
+    # show that bucket edges are divided treating end as +1 for discrete type
+    # because including highest value makes last bucket one larger
+    resource = factories.Resource(url_type="datastore")
+    helpers.call_action(
+        "datastore_create",
+        resource_id=resource["id"],
+        fields=[
+            {"id": "ex", "type": "int"},
+        ],
+        records=[
+            {"ex": 0}, {"ex": 1}, {"ex": 2}, {"ex": 4}, {"ex": 5}, {"ex": 6}, {"ex": 7},
+        ]
+    )
+    results = helpers.call_action(
+        "datastore_search_buckets",
+        resource_id=resource["id"],
+        buckets=4,
+    )
+    assert results["fields"] == [
+        {
+            "id": "ex",
+            "buckets": [2, 1, 2, 2],
+            "edges": [0, 2, 4, 6, 7],
+            "nulls": 0,
+            "type": "int4",
+        },
     ]
