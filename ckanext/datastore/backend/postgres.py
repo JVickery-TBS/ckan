@@ -85,7 +85,6 @@ _INSERT = 'insert'
 _UPSERT = 'upsert'
 _UPDATE = 'update'
 
-
 if not os.environ.get('DATASTORE_LOAD'):
     ValidationError = toolkit.ValidationError  # type: ignore
 else:
@@ -1637,7 +1636,7 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
     ts_query = cast(str, query_dict['ts_query'])
     resource_id = data_dict['resource_id']
 
-    sql_number_fmt = '''
+    sql_string = '''
         data_stats_{index} AS (
             SELECT
                 min({column}) AS min_val,
@@ -1645,86 +1644,74 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
             FROM
                 {resource} {ts_query} {where}
         ),
-        data_{index} AS (
-            SELECT
-                width_bucket({column}, data_stats_{index}.min_val, data_stats_{index}.max_val, {num_buckets}) AS bucket,
-                count(*) AS freq
-            FROM
-                {resource},
-                data_stats_{index}
-            {ts_query}
-            {where}
-            GROUP BY
-                bucket
-            ORDER BY
-                bucket
-        )'''
-
-    sql_datetime_fmt = '''
-        data_stats_{index} AS (
-            SELECT
-                min(EXTRACT(EPOCH FROM {column})) AS min_val,
-                max(EXTRACT(EPOCH FROM {column})) AS max_val
-            FROM
-                {resource} {ts_query} {where}
+        edges_{index} AS (
+            SELECT DISTINCT
+                least(data_stats_{index}.min_val + (
+                generate_series(0, {num_buckets})
+                * (data_stats_{index}.max_val {step} - data_stats_{index}.min_val)
+                / {num_buckets}
+                ), data_stats_{index}.max_val)::{ftype} e
+            FROM data_stats_{index}
+            ORDER BY e
         ),
         data_{index} AS (
-            SELECT
-                width_bucket(EXTRACT(EPOCH FROM {column}), data_stats_{index}.min_val, data_stats_{index}.max_val, {num_buckets}) AS bucket,
-                count(*) AS freq
+            SELECT val, coalesce(freq, 0) freq
             FROM
-                {resource},
-                data_stats_{index}
-            {ts_query}
-            {where}
-            GROUP BY
-                bucket
-            ORDER BY
-                bucket
+                unnest(array(SELECT * FROM edges_{index})) with ordinality as val
+            FULL JOIN
+                (
+                    SELECT
+                        width_bucket({column}, array(
+                            SELECT * FROM edges_{index})) AS bucket,
+                        count(*) AS freq
+                    FROM
+                        {resource},
+                        data_stats_{index}
+                    {ts_query}
+                    {where}
+                    GROUP BY
+                        bucket
+                ) b
+            ON ordinality = bucket
         )'''
 
     data_dict['records'] = {}
     with_queries = []
     select_queries = []
     params = {}
-    fid_map = []
 
-    index = 0
+    rfields = []
     for fid, ftype in fields_types.items():
-        index += 1
-
         if fid == '_id':
             continue
 
-        sql_string = None
-
-        if ftype in ['int', 'int4',
-                     'bigint', 'int8',
-                     'decimal', 'numeric']:
-            sql_string = sql_number_fmt
-        elif ftype in ['datetime', 'date',
-                       'timestamp', 'timestamptz']:
-            sql_string = sql_datetime_fmt
-
-        if not sql_string:
+        if ftype in ['int', 'int4', 'bigint', 'int8', 'date']:
+            step = 1
+        elif ftype in ['decimal', 'numeric', 'datetime', 'timestamp', 'timestamptz']:
+            step = 0
+        else:
             continue
+
+
+        rfields.append({'id': fid, 'type': ftype})
 
         with_queries.append(
             sql_string.format(
-                index=index,
+                index=len(rfields),
                 column=identifier(fid),
                 resource=identifier(resource_id),
                 ts_query=ts_query,
                 where=where_clause,
-                num_buckets=data_dict['buckets']))
+                num_buckets=data_dict['buckets'],
+                ftype=ftype,
+                step=f'+ {step}' if step else '',
+            ))
 
-        # FIXME: can datastore have multiple columns with same name??
         select_queries.append('''
-            array(SELECT freq FROM data_{index}) AS {column}'''.format(
-                index=index,
-                column=identifier(fid)))
-
-        fid_map.append(fid)
+            array(SELECT freq FROM data_{index}) AS freq_{index},
+            array(SELECT val FROM data_{index}) AS edge_{index}
+            '''.format(index=len(rfields))
+        )
 
         for chunk in where_values:
             params.update(chunk)
@@ -1735,19 +1722,29 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
             with_statements=','.join(with_queries),
             array_statments=','.join(select_queries))
 
-    results = context['connection'].execute(
+    result = context['connection'].execute(
         sa.text(aggregated_sql_string),
         params
-    ).mappings().all()[0]
+    ).mappings().one()
 
-    data_dict['buckets'] = dict(results)
+    for i, rf in enumerate(rfields, 1):
+        buckets = result[f'freq_{i}']
+        edges = result[f'edge_{i}']
+        rf['nulls'] = 0
+        if result[f'edge_{i}'][-1:] == [None]:
+            edges.pop()
+            rf['nulls'] = buckets.pop()
+            if edges == [None]:  # all nulls returns two null edges
+                edges = []
+                buckets = []
+        if len(buckets) > data_dict['buckets']:
+            # last value returned contains count exactly matching max value
+            # combine with bucket before
+            buckets = buckets[:-2] + [sum(buckets[-2:])]
+        rf['buckets'] = buckets
+        rf['edges'] = edges
 
-    data_dict['fields'] = _result_fields(
-        fields_types,
-        _get_field_info(context['connection'], data_dict['resource_id']),
-        datastore_helpers.get_list(data_dict.get('fields')))
-
-    return data_dict
+    return {'fields': rfields}
 
 
 def _execute_single_statement_copy_to(

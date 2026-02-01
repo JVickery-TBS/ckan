@@ -724,8 +724,8 @@ def datastore_search(context: Context, data_dict: dict[str, Any]):
 
 @logic.side_effect_free
 def datastore_search_buckets(context: Context, data_dict: dict[str, Any]):
-    '''Search a DataStore resource and bucket all
-    of the data into ranges and frequencies.
+    '''Search a DataStore resource and bucket numeric and date field
+    data for the whole table.
 
     The datastore_search_buckets action allows you to search data in a resource.
     Number and Date type fields will return their ranges and frequencies, where
@@ -740,8 +740,8 @@ def datastore_search_buckets(context: Context, data_dict: dict[str, Any]):
     :param filters: :ref:`filters` for matching conditions to select, e.g
                     {"key1": "a", "key2": "b"} (optional)
     :type filters: dictionary
-    :param buckets: return all data in bucket ranges
-                    for each column/field (optional, sysadmin only)
+    :param buckets: maximum number of buckets to return for each field
+                    (optional, default: 12)
     :type buckets: int
     :param q: full text query. If it's a string, it'll search on all fields on
               each row. If it's a dictionary as {"key1": "a", "key2": "b"},
@@ -756,32 +756,30 @@ def datastore_search_buckets(context: Context, data_dict: dict[str, Any]):
     :param language: language of the full text query
                      (optional, default: english)
     :type language: string
-    :param fields: fields to return
-                   (optional, default: all fields in original order)
+    :param fields: fields to return (optional, default: all fields)
+                   Note: only fields with numeric or date types will be returned
     :type fields: list or comma separated string
 
     Setting the ``plain`` flag to false enables the entire PostgreSQL
     `full text search query language`_.
 
-    A listing of all available resources can be found at the
-    alias ``_table_metadata``.
-
     .. _full text search query language: http://www.postgresql.org/docs/9.1/static/datatype-textsearch.html#DATATYPE-TSQUERY
-
-    If you need to download the full resource, read :ref:`dump`.
 
     **Results:**
 
     The result of this action is a dictionary with the following keys:
 
-    :rtype: A dictionary with the following keys
-    :param fields: fields/columns and their extra metadata
-    :type fields: list of dictionaries
-    :param filters: query filters
-    :type filters: list of dictionaries
-    :param buckets: dict of matching results
-    :type buckets: dict of field ids and bucketed data
-
+    :returns: A dict containing a ``fields`` list of dicts containing:
+              - ``id`` (str): column name
+              - ``buckets`` (list of ints): frequency values for each bucket
+              - ``edges`` (list): values at bucket edges, first/last are min/max
+                values for the column, if len(edges) == len(buckets) then
+                edge values are discrete and exact values for each bucket,
+                otherwise bucket[n] covers edges[n] <= value < edges[n+1]
+                and last bucket covers edges[-2] <= value <= edges[-1]
+              - ``nulls`` (int): count of null values in column
+              - ``type`` (str): column type
+    :rtype: dict
     '''
     backend = DatastoreBackend.get_active_backend()
     schema = context.get('schema', dsschema.datastore_search_buckets_schema())

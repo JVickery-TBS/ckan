@@ -1,10 +1,12 @@
 # encoding: utf-8
 from __future__ import annotations
 
+from datetime import timedelta
 import json
 import logging
 from typing import (
-    Any, Iterable, Optional, Sequence, Union, cast, overload
+    Any, Iterable, Optional, Sequence, Union, cast, overload,
+    TypeVar, NamedTuple,
 )
 from typing_extensions import Literal
 
@@ -263,3 +265,80 @@ def datastore_show_resource_actions():
     """
 
     return "midnight-blue" not in tk.config.get("ckan.base_templates_folder")
+
+
+T = TypeVar("T")
+
+class HistogramBar(NamedTuple):
+    width: float  # where 1 is the full graph width
+    height: float  # where 1 is the full graph height
+    low: T  # smallest value included in bar
+    high: T  # largest value included in bar
+
+
+def datastore_bucket_histogram(bucket_fields: list[dict[str, Any]]
+) -> dict[str, list[HistogramBar]]:
+    """
+    Convert fields returned from datastore_buckets to a dict of histogram
+    width and height values. Returns dict mapping field names to arrays of::
+
+        class HistogramBar(NamedTuple):
+            width: float  # where 1 is the full graph width
+            height: float  # where 1 is the full graph height
+            low: T  # smallest value included in bar
+            high: T  # largest value included in bar
+    """
+    out = {}
+    for f in bucket_fields:
+        buckets = f['buckets']
+        edges = f['edges']
+        if len(edges) == len(buckets):
+            out[f['id']] = [
+                HistogramBar(
+                    width=1 / len(buckets),
+                    height=b / max(buckets),
+                    low=edges[i],
+                    high=edges[i],
+                )
+                for i, b in enumerate(buckets)
+            ]
+        else:
+            match f['type']:
+                case 'int' | 'int4' | 'bigint' | 'int8':
+                    step = 1
+                case 'date':
+                    step = timedelta(1)
+                case _:
+                    step = None
+            if step:
+                highs = [e - step for e in edges[1:-1]] + [edges[-1]]
+            else:
+                highs = edges[1:]
+
+            if hasattr(edges[0], 'timestamp'):
+                nedges = [e.timestamp() for e in edges]
+            elif hasattr(edges[0], 'toordinal'):
+                nedges = [e.toordinal() for e in edges]
+            else:
+                nedges = [float(e) for e in edges]
+
+            if step:
+                nedges[-1] += 1
+
+            total_width = nedges[-1] - nedges[0]
+            widths = [
+                (high - low) / total_width
+                for low, high in zip(nedges, nedges[1:])
+            ]
+            density = [b / w for b, w in zip(buckets, widths)]
+
+            out[f['id']] = [
+                HistogramBar(
+                    width=widths[i],
+                    height=d / max(density),
+                    low=edges[i],
+                    high=highs[i],
+                )
+                for i, d in enumerate(density)
+            ]
+    return out
