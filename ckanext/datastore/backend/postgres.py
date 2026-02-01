@@ -1646,11 +1646,11 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
         ),
         edges_{index} AS (
             SELECT DISTINCT
-                (data_stats_{index}.min_val + (
+                least(data_stats_{index}.min_val + (
                 generate_series(0, {num_buckets})
                 * (data_stats_{index}.max_val {step} - data_stats_{index}.min_val)
                 / {num_buckets}
-                ))::{ftype} e
+                ), data_stats_{index}.max_val)::{ftype} e
             FROM data_stats_{index}
             ORDER BY e
         ),
@@ -1741,21 +1741,6 @@ def search_data_buckets(context: Context, data_dict: dict[str, Any]):
             # last value returned contains count exactly matching max value
             # combine with bucket before
             buckets = buckets[:-2] + [sum(buckets[-2:])]
-        if (
-            rf['type'] in ['int', 'int4', 'bigint', 'int8', 'date']
-            and edges and edges[-1] is not None
-        ):
-            # make last edge exactly max(column) for discrete values
-            # because it was adjusted by + step (+ 1) in the sql above
-            if rf['type'] == 'date':
-                edges[-1] -= datetime.timedelta(days=1)
-            else:
-                edges[-1] -= 1
-        if buckets and buckets[-1] == 0:
-            # adjusting discrete last edge +1 left empty an bucket
-            # because num discrete values < data_dict['buckets']
-            edges.pop()
-            buckets.pop()
         rf['buckets'] = buckets
         rf['edges'] = edges
 
